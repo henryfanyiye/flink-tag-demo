@@ -28,13 +28,12 @@ public class DorisSinkExample {
 
         DorisSink.Builder<String> builder = DorisSink.builder();
 
-        DorisOptions dorisOptions =
-                DorisOptions.builder()
-                        .setFenodes("10.10.11.56:8030")
-                        .setTableIdentifier("tag_db.user_tag_test")
-                        .setUsername("admin")
-                        .setPassword("")
-                        .build();
+        DorisOptions dorisOptions = DorisOptions.builder()
+                .setFenodes("10.10.11.56:8030")
+                .setTableIdentifier("tag_db.user_tags_kafka")
+                .setUsername("admin")
+                .setPassword("")
+                .build();
 
         Properties properties = new Properties();
         properties.setProperty("read_json_by_line", "true");
@@ -54,7 +53,8 @@ public class DorisSinkExample {
                 .setDorisOptions(dorisOptions);
 
         List<String> data = new ArrayList<>();
-        data.add("{\n  \"user_id\": 1,\n  \"tag_code\": \"gender\",\n  \"tag_value\": \"male\",\n  \"tag_type\": \"profile\",\n  \"tag_version\": \"v1\",\n  \"source_system\": \"app\",\n  \"event_time\": \"2024-03-20 10:00:00\"\n}");
+        data.add("{\"id\":3,\"name\":\"Michael\",\"age\":28}");
+        data.add("{\"id\":4,\"name\":\"David\",\"age\":38}");
 
         env.fromCollection(data).sinkTo(builder.build());
         env.execute("doris test");

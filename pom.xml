@@ -12,6 +12,7 @@
         <java.version>17</java.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
+        <log4j.version>2.17.1</log4j.version>
     </properties>
     <dependencies>
         <dependency>
@@ -23,7 +24,7 @@
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-connector-kafka</artifactId>
-            <version>3.4.0-1.20</version>
+            <version>3.3.0-1.20</version>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
@@ -50,15 +51,17 @@
             <artifactId>lombok</artifactId>
             <version>1.18.28</version>
         </dependency>
+        <!-- Flink JDBC Connector -->
         <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-math3</artifactId>
-            <version>3.6.1</version>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-connector-jdbc</artifactId>
+            <version>3.3.0-1.20</version>
         </dependency>
+        <!-- MySQL JDBC Driver -->
         <dependency>
-            <groupId>org.apache.doris</groupId>
-            <artifactId>flink-doris-connector-1.20</artifactId>
-            <version>25.1.0</version>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.33</version>
         </dependency>
     </dependencies>
     <build>
@@ -77,18 +80,6 @@
                                     <mainClass>com.demo.flink.FlinkTagJob</mainClass>
                                 </transformer>
                             </transformers>
-                            <shadedArtifactAttached>true</shadedArtifactAttached>
-                            <shadedClassifierName>flink-job</shadedClassifierName>
-                            <filters>
-                                <filter>
-                                    <artifact>*:*</artifact>
-                                    <excludes>
-                                        <exclude>META-INF/*.SF</exclude>
-                                        <exclude>META-INF/*.DSA</exclude>
-                                        <exclude>META-INF/*.RSA</exclude>
-                                    </excludes>
-                                </filter>
-                            </filters>
                         </configuration>
                     </execution>
                 </executions>

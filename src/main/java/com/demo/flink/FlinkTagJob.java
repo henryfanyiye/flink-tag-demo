@@ -1,13 +1,10 @@
 package com.demo.flink;
 
-import com.demo.flink.model.UserTagEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.doris.flink.cfg.DorisExecutionOptions;
-import org.apache.doris.flink.cfg.DorisOptions;
-import org.apache.doris.flink.sink.DorisSink;
-import org.apache.doris.flink.sink.writer.serializer.SimpleStringSerializer;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
+import org.apache.flink.connector.jdbc.JdbcConnectionOptions;
+import org.apache.flink.connector.jdbc.JdbcSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -15,16 +12,16 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.util.Collector;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 
-import java.util.Objects;
-import java.util.Properties;
-import java.util.UUID;
-
 /**
  * @author henry.fan
  */
 public class FlinkTagJob {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    public static class Event {
+        public String user_id;
+        public String event_type;
+        public String event_time;
+    }
 
     public static void main(String[] args) throws Exception {
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -49,10 +46,10 @@ public class FlinkTagJob {
         DataStream<String> rawStream = env.fromSource(source, WatermarkStrategy.noWatermarks(), "Kafka Source");
 
         // 解析 JSON 为 POJO
-        DataStream<UserTagEvent> parsedStream = rawStream
-                .flatMap((String value, Collector<UserTagEvent> out) -> {
+        DataStream<Event> parsedStream = rawStream
+                .flatMap((String value, Collector<Event> out) -> {
                     try {
-                        UserTagEvent event = new ObjectMapper().readValue(value, UserTagEvent.class);
+                        Event event = new ObjectMapper().readValue(value, Event.class);
                         out.collect(event);
                     } catch (Exception e) {
                         System.err.println(e);
@@ -61,49 +58,25 @@ public class FlinkTagJob {
                 })
                 .name("Safe JSON Parser")
                 // 显式声明返回类型
-                .returns(UserTagEvent.class);
+                .returns(Event.class);
 
         parsedStream.print();
 
-        // 转换为 JSON 字符串以便写入 Doris
-        DataStream<String> jsonStream = parsedStream
-                .map(event -> {
-                    try {
-                        return MAPPER.writeValueAsString(event);  // ✅ 使用静态变量
-                    } catch (Exception e) {
-                        System.err.println("Failed to serialize event to JSON: " + event);
-                        return null;
-                    }
-                })
-                .filter(Objects::nonNull);
-
-        jsonStream.print();
-
-        DorisOptions dorisOptions = DorisOptions.builder()
-                .setFenodes("10.10.11.56:8030")
-                .setTableIdentifier("tag_db.user_tag_test")
-                .setUsername("admin")
-                .setPassword("")
-                .build();
-
-        Properties properties = new Properties();
-        properties.setProperty("read_json_by_line", "true");
-        properties.setProperty("format", "json");
-
-        DorisExecutionOptions executionOptions = DorisExecutionOptions.builder()
-                .setLabelPrefix("label-doris" + UUID.randomUUID())
-                .setDeletable(true)
-                .setStreamLoadProp(properties)
-                .build();
-
-        DorisSink<String> dorisSink = DorisSink.<String>builder()
-                .setDorisOptions(dorisOptions)
-                .setDorisExecutionOptions(executionOptions)
-                .setSerializer(new SimpleStringSerializer())
-                .build();
-
-        // 写入 Doris
-        jsonStream.sinkTo(dorisSink);
+        // 写入 MySQL
+        parsedStream.addSink(JdbcSink.sink(
+                "INSERT INTO demo.user_events(user_id, event_type, event_time) VALUES (?, ?, ?)",
+                (ps, e) -> {
+                    ps.setString(1, e.user_id);
+                    ps.setString(2, e.event_type);
+                    ps.setString(3, e.event_time);
+                },
+                new JdbcConnectionOptions.JdbcConnectionOptionsBuilder()
+                        .withUrl("jdbc:mysql://localhost:3306/demo?useSSL=false&serverTimezone=UTC")
+                        .withDriverName("com.mysql.cj.jdbc.Driver")
+                        .withUsername("root")
+                        .withPassword("12345678")
+                        .build()
+        ));
 
         env.execute("Flink Tag Job with Kafka to Doris");
     }
